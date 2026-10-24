@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PengeluaranKu POS - Local & Offline Edition</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            pos: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+              900: '#022c22',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Courier New', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* Custom CSS Scrollbar & POS Animation */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    .pos-btn {
+      transition: all 0.1s ease;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .pos-btn:active {
+      transform: scale(0.95);
+    }
+    
+    /* Struk Kertas Styling */
+    .receipt-paper {
+      background-color: #f8fafc;
+      color: #0f172a;
+      background-image: radial-gradient(#cbd5e1 1px, transparent 0);
+      background-size: 10px 10px;
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col font-sans antialiased bg-slate-950 text-slate-100 select-none">
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- HEADER / TOP NAVIGATION -->
+  <header class="bg-slate-900 border-b border-slate-800 px-4 py-3 shrink-0">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Logo & Brand Name -->
+      <div class="flex items-center gap-3">
+        <div class="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400">
+          <i data-lucide="calculator" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-black tracking-tight flex items-center gap-2 text-white">
+            Pengeluaran<span class="text-emerald-400">Ku</span>
+            <span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-md border border-emerald-500/30 uppercase tracking-wide">
+              100% OFFLINE
+            </span>
+          </h1>
+          <p class="text-xs text-slate-400">Pencatat Pengeluaran POS - Penyimpanan Lokal Perangkat</p>
+        </div>
+      </div>
+
+      <!-- Control Badges & Audio Toggle -->
+      <div class="flex items-center gap-2.5 text-xs">
+        <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-800/90 border border-slate-700/80 rounded-full text-slate-300">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="font-medium text-emerald-400">Local Storage Active</span>
+        </div>
+
+        <button onclick="toggleAudioSound()" id="soundToggleBtn" title="Suara Numpad" class="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-emerald-400 transition flex items-center gap-1.5 font-medium">
+          <i data-lucide="volume-2" id="soundIcon" class="w-4 h-4"></i>
+          <span class="text-[11px] hidden md:inline">Suara: ON</span>
+        </button>
+
+        <button onclick="openBackupModal()" class="px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 rounded-xl transition flex items-center gap-1.5 font-bold">
+          <i data-lucide="database" class="w-4 h-4"></i>
+          <span>Backup/Restore</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- MAIN APP WRAPPER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 flex flex-col gap-4 overflow-y-auto">
+
+    <!-- REAL-TIME KPI SUMMARY CARDS -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
+      
+      <!-- Today Card -->
+      <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl relative overflow-hidden">
+        <div class="flex justify-between items-center text-slate-400 text-xs font-semibold mb-1">
+          <span class="uppercase tracking-wider">HARI INI</span>
+          <i data-lucide="sun" class="w-4 h-4 text-amber-400"></i>
+        </div>
+        <p id="kpiToday" class="text-lg sm:text-2xl font-extrabold font-mono text-emerald-400 tracking-tight">Rp 0</p>
+        <p id="kpiTodaySub" class="text-[11px] text-slate-500 mt-0.5">0 transaksi</p>
+      </div>
+
+      <!-- This Week Card -->
+      <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl relative overflow-hidden">
+        <div class="flex justify-between items-center text-slate-400 text-xs font-semibold mb-1">
+          <span class="uppercase tracking-wider">MINGGU INI</span>
+          <i data-lucide="calendar-days" class="w-4 h-4 text-teal-400"></i>
+        </div>
+        <p id="kpiWeekly" class="text-lg sm:text-2xl font-extrabold font-mono text-teal-300 tracking-tight">Rp 0</p>
+        <p class="text-[11px] text-slate-500 mt-0.5">Senin - Minggu</p>
+      </div>
+
+      <!-- This Month Card -->
+      <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl relative overflow-hidden">
+        <div class="flex justify-between items-center text-slate-400 text-xs font-semibold mb-1">
+          <span class="uppercase tracking-wider">BULAN INI</span>
+          <i data-lucide="calendar-range" class="w-4 h-4 text-sky-400"></i>
+        </div>
+        <p id="kpiMonthly" class="text-lg sm:text-2xl font-extrabold font-mono text-sky-300 tracking-tight">Rp 0</p>
+        <p id="kpiMonthLabel" class="text-[11px] text-slate-500 mt-0.5">Bulan berjalan</p>
+      </div>
+
+      <!-- This Year Card -->
+      <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl relative overflow-hidden">
+        <div class="flex justify-between items-center text-slate-400 text-xs font-semibold mb-1">
+          <span class="uppercase tracking-wider">TAHUN INI</span>
+          <i data-lucide="calendar" class="w-4 h-4 text-purple-400"></i>
+        </div>
+        <p id="kpiYearly" class="text-lg sm:text-2xl font-extrabold font-mono text-purple-300 tracking-tight">Rp 0</p>
+        <p id="kpiYearLabel" class="text-[11px] text-slate-500 mt-0.5">Tahun berjalan</p>
+      </div>
+
+    </section>
+
+
+    <!-- POS MAIN WORKSPACE GRID -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 items-start">
+
+      <!-- LEFT COLUMN: POS INPUT TERMINAL (7 Cols) -->
+      <section class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 flex flex-col gap-4 shadow-xl">
+        
+        <!-- DIGITAL DISPLAY SCREEN -->
+        <div class="bg-slate-950 border-2 border-emerald-500/40 rounded-2xl p-4 flex flex-col justify-between shadow-inner relative overflow-hidden">
+          
+          <div class="flex justify-between items-center text-xs font-semibold text-slate-400 mb-1">
+            <span class="flex items-center gap-1.5 text-emerald-400 font-bold uppercase tracking-wider">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+              <span id="displayModeBadge">NOMINAL PENGELUARAN</span>
+            </span>
+            <div class="flex items-center gap-2">
+              <button onclick="clearNumpad()" class="text-xs text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-2.5 py-1 rounded-lg border border-rose-500/30 transition font-bold">
+                Reset (C)
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-baseline justify-between overflow-x-auto py-1">
+            <span class="text-xl font-bold text-slate-500 font-mono mr-2">Rp</span>
+            <span id="posDisplay" class="text-3xl sm:text-5xl font-black font-mono text-emerald-400 tracking-tight">0</span>
+          </div>
+
+          <!-- Editing state indicator banner -->
+          <div id="editingBanner" class="hidden mt-2 pt-2 border-t border-amber-500/30 text-amber-400 text-xs flex justify-between items-center font-bold">
+            <span class="flex items-center gap-1">
+              <i data-lucide="edit" class="w-3.5 h-3.5"></i>
+              Mode Edit Transaksi
+            </span>
+            <button onclick="cancelEditMode()" class="text-[10px] text-slate-400 hover:text-white underline">
+              Batal Edit
+            </button>
+          </div>
+        </div>
+
+        <!-- QUICK ADD CHIPS (+1rb, +5rb, +10rb, +20rb, +50rb, +100rb) -->
+        <div class="grid grid-cols-6 gap-1.5">
+          <button onclick="addQuickAmount(1000)" class="pos-btn py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-bold font-mono text-emerald-300">+1rb</button>
+          <button onclick="addQuickAmount(5000)" class="pos-btn py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-bold font-mono text-emerald-300">+5rb</button>
+          <button onclick="addQuickAmount(10000)" class="pos-btn py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-bold font-mono text-emerald-300">+10rb</button>
+          <button onclick="addQuickAmount(20000)" class="pos-btn py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-bold font-mono text-emerald-300">+20rb</button>
+          <button onclick="addQuickAmount(50000)" class="pos-btn py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-bold font-mono text-emerald-300">+50rb</button>
+          <button onclick="addQuickAmount(100000)" class="pos-btn py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-bold font-mono text-emerald-300">+100rb</button>
+        </div>
+
+        <!-- NUMPAD & CATEGORIES FLEX LAYOUT -->
+        <div class="grid grid-cols-1 sm:grid-cols-12 gap-4">
+          
+          <!-- NUMPAD KEYPAD (7 Columns on SM) -->
+          <div class="sm:col-span-7 grid grid-cols-3 gap-2">
+            <button onclick="pressNumpad('1')" class="pos-btn py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-emerald-600 border border-slate-700/80 rounded-2xl text-xl font-black font-mono">1</button>
+            <button onclick="pressNumpad('2')" class="pos-btn py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-emerald-600 border border-slate-700/80 rounded-2xl text-xl font-black font-mono">2</button>
+            <button onclick="pressNumpad('3')" class="pos-btn py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-emerald-600 border border-slate-700/80 rounded-2xl text-xl font-black font-mono">3</button>
+            
+            <button onclick="pressNumpad('4')" class="pos-btn py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-emerald-600 border border-slate-700/80 rounded-2xl text-xl font-black font-mono">4</button>
+            <button onclick="pressNumpad('5')" class="pos-btn py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-emerald-600 border border-slate-700/80 rounded-2xl text-xl font-black font-mono">5</button>
+            <button onclick="pressNumpad('6')" class="pos-btn py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-emerald-600 border border-slate-700/80 rounded-2xl text-xl font-black font-mono">6</button>
+
+            <button onclick="pressNumpad('7')" class="pos-btn py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-emerald-600 border border-slate-700/80 rounded-2xl text-xl font-black font-mono">7</button>
+            <button onclick="pressNumpad('8')" class="pos-btn py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-emerald-600 border border-slate-700/80 rounded-2xl text-xl font-black font-mono">8</button>
+            <button onclick="pressNumpad('9')" class="pos-btn py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-emerald-600 border border-slate-700/80 rounded-2xl text-xl font-black font-mono">9</button>
+
+            <button onclick="pressNumpad('000')" class="pos-btn py-3.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-2xl text-sm font-bold font-mono text-emerald-400">000</button>
+            <button onclick="pressNumpad('0')" class="pos-btn py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-emerald-600 border border-slate-700/80 rounded-2xl text-xl font-black font-mono">0</button>
+            <button onclick="pressNumpad('BACKSPACE')" class="pos-btn py-3.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 rounded-2xl flex items-center justify-center">
+              <i data-lucide="delete" class="w-5 h-5"></i>
+            </button>
+          </div>
+
+          <!-- QUICK CATEGORY SELECTION TILES (5 Columns on SM) -->
+          <div class="sm:col-span-5 flex flex-col gap-2">
+            <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Kategori Pengeluaran</label>
+            <div class="grid grid-cols-3 sm:grid-cols-2 gap-1.5 flex-1" id="categoryGrid">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+        </div>
+
+        <!-- TRANSACTION METADATA (NOTE & DATE) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800">
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 mb-1">Catatan / Detail (Opsional)</label>
+            <div class="relative">
+              <input type="text" id="posNoteInput" placeholder="Misal: Nasi Goreng, Bensin, Token PLN" class="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500">
+              <i data-lucide="file-text" class="w-4 h-4 text-slate-600 absolute left-3 top-2.5"></i>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 mb-1">Tanggal Transaksi</label>
+            <div class="relative">
+              <input type="date" id="posDateInput" class="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500">
+              <i data-lucide="calendar" class="w-4 h-4 text-slate-600 absolute left-3 top-2.5"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- SAVE TRANSACTION BUTTON -->
+        <button onclick="submitExpense()" id="btnSubmitExpense" class="pos-btn w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-base rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 tracking-wide uppercase">
+          <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+          <span id="btnSubmitText">SIMPAN PENGELUARAN</span>
+        </button>
+
+      </section>
+
+
+      <!-- RIGHT COLUMN: RECEIPT HISTORY & ANALYTICS (5 Cols) -->
+      <section class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 flex flex-col gap-4 shadow-xl">
+        
+        <!-- NAVIGATION TAB BAR -->
+        <div class="bg-slate-950 p-1 rounded-2xl flex items-center gap-1 border border-slate-800 text-xs font-semibold">
+          <button onclick="switchTab('history')" id="tabBtnHistory" class="flex-1 py-2 rounded-xl transition bg-slate-800 text-emerald-400 shadow-sm flex items-center justify-center gap-1.5 font-bold">
+            <i data-lucide="receipt" class="w-3.5 h-3.5"></i>
+            <span>Struk Realtime</span>
+          </button>
+          <button onclick="switchTab('analytics')" id="tabBtnAnalytics" class="flex-1 py-2 rounded-xl transition text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1.5">
+            <i data-lucide="pie-chart" class="w-3.5 h-3.5"></i>
+            <span>Grafik Rekap</span>
+          </button>
+          <button onclick="switchTab('data')" id="tabBtnData" class="flex-1 py-2 rounded-xl transition text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1.5">
+            <i data-lucide="hard-drive" class="w-3.5 h-3.5"></i>
+            <span>Ekspor / Laporan</span>
+          </button>
+        </div>
+
+        <!-- TAB CONTENT 1: RECEIPT & TRANSACTION LIST -->
+        <div id="tabHistoryContent" class="flex flex-col gap-3">
+          
+          <!-- Search & Filter Controls -->
+          <div class="flex items-center gap-2">
+            <div class="relative flex-1">
+              <input type="text" id="historySearchInput" oninput="renderHistoryList()" placeholder="Cari transaksi..." class="w-full pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500">
+              <i data-lucide="search" class="w-3.5 h-3.5 text-slate-600 absolute left-2.5 top-2"></i>
+            </div>
+            <select id="historyCategoryFilter" onchange="renderHistoryList()" class="bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-300 py-1.5 px-2 focus:outline-none">
+              <option value="ALL">Semua Kategori</option>
+            </select>
+          </div>
+
+          <!-- RECEIPT CONTAINER PAPER -->
+          <div class="receipt-paper rounded-2xl p-4 shadow-md border border-slate-300 max-h-[480px] overflow-y-auto space-y-3 font-mono">
+            
+            <div class="text-center pb-2 border-b-2 border-dashed border-slate-300">
+              <h2 class="font-extrabold text-sm text-slate-900 tracking-wider">STRUK PENGELUARAN</h2>
+              <p class="text-[10px] text-slate-600">Penyimpanan Lokal Browser (Offline)</p>
+            </div>
+
+            <!-- Dynamic List Rows -->
+            <div id="receiptRows" class="space-y-2 text-xs divide-y divide-dashed divide-slate-200">
+              <!-- Rendered via JS -->
+            </div>
+
+            <div id="receiptEmpty" class="text-center py-8 text-slate-400 text-xs hidden font-sans">
+              Belum ada data pengeluaran.
+            </div>
+
+            <div class="pt-2 border-t-2 border-dashed border-slate-300 flex justify-between items-center font-black text-xs text-slate-900">
+              <span>TOTAL TERFILTER:</span>
+              <span id="receiptFilteredTotal" class="text-sm">Rp 0</span>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- TAB CONTENT 2: ANALYTICS & CHARTS -->
+        <div id="tabAnalyticsContent" class="hidden flex-col gap-4">
+          <div class="bg-slate-950 border border-slate-800 p-3.5 rounded-2xl">
+            <h3 class="text-xs font-bold text-slate-300 mb-2 flex items-center gap-1.5">
+              <i data-lucide="pie-chart" class="w-4 h-4 text-emerald-400"></i>
+              Proporsi Pengeluaran Kategori
+            </h3>
+            <div class="h-48 relative flex items-center justify-center">
+              <canvas id="posCategoryChart"></canvas>
+            </div>
+          </div>
+
+          <div class="bg-slate-950 border border-slate-800 p-3.5 rounded-2xl">
+            <h3 class="text-xs font-bold text-slate-300 mb-2 flex items-center gap-1.5">
+              <i data-lucide="bar-chart-2" class="w-4 h-4 text-teal-400"></i>
+              Breakdown Pengeluaran
+            </h3>
+            <div id="categoryBreakdownList" class="space-y-2 max-h-40 overflow-y-auto pr-1 text-xs">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB CONTENT 3: LOCAL DATA & EXPORT -->
+        <div id="tabDataContent" class="hidden flex-col gap-4 text-xs">
+          
+          <div class="bg-slate-950 border border-slate-800 p-4 rounded-2xl space-y-3">
+            <h3 class="font-bold text-slate-200 flex items-center gap-1.5 text-sm">
+              <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-400"></i>
+              Ekspor Laporan (Excel / CSV)
+            </h3>
+            <p class="text-slate-400 leading-relaxed">
+              Unduh seluruh catatan transaksi keuangan Anda dalam format file CSV yang dapat dibuka langsung di Microsoft Excel atau Google Sheets.
+            </p>
+            <button onclick="exportCSV()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition flex items-center justify-center gap-2">
+              <i data-lucide="download" class="w-4 h-4"></i>
+              <span>Unduh File CSV / Excel</span>
+            </button>
+          </div>
+
+          <div class="bg-slate-950 border border-slate-800 p-4 rounded-2xl space-y-3">
+            <h3 class="font-bold text-slate-200 flex items-center gap-1.5 text-sm">
+              <i data-lucide="shield-check" class="w-4 h-4 text-sky-400"></i>
+              Proteksi Cadangan Data (JSON)
+            </h3>
+            <p class="text-slate-400 leading-relaxed">
+              Buat file cadangan (Backup JSON) agar Anda dapat dengan mudah memindahkan data ke perangkat atau HP lain kapan saja.
+            </p>
+            <div class="grid grid-cols-2 gap-2">
+              <button onclick="exportJSONBackup()" class="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl transition flex items-center justify-center gap-1.5">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                <span>Backup JSON</span>
+              </button>
+              <button onclick="openBackupModal()" class="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl transition flex items-center justify-center gap-1.5">
+                <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                <span>Restore JSON</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-rose-950/30 border border-rose-900/50 p-4 rounded-2xl space-y-3">
+            <h3 class="font-bold text-rose-300 flex items-center gap-1.5 text-sm">
+              <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-400"></i>
+              Zona Bahaya
+            </h3>
+            <p class="text-slate-400">Hapus seluruh data transaksi yang tersimpan di browser ini.</p>
+            <button onclick="confirmResetAllData()" class="w-full py-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 font-bold rounded-xl transition flex items-center justify-center gap-2">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+              <span>Hapus Seluruh Data</span>
+            </button>
+          </div>
+
+        </div>
+
+      </section>
+
+    </div>
+
+  </main>
+
+
+  <!-- MODAL: CONFIRM DELETE / RESET -->
+  <div id="confirmModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 space-y-4 text-center shadow-2xl">
+      <div id="confirmIconContainer" class="w-12 h-12 bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-2xl flex items-center justify-center mx-auto">
+        <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+      </div>
+      <div>
+        <h3 id="confirmTitle" class="font-bold text-white text-base">Konfirmasi Hapus</h3>
+        <p id="confirmMessage" class="text-xs text-slate-400 mt-1 leading-relaxed">Apakah Anda yakin?</p>
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button id="confirmCancelBtn" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition">
+          Batal
+        </button>
+        <button id="confirmActionBtn" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl transition">
+          Ya, Lanjutkan
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- MODAL: BACKUP & RESTORE JSON -->
+  <div id="backupModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+      
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h3 class="font-bold text-white text-base flex items-center gap-2">
+          <i data-lucide="database" class="w-5 h-5 text-emerald-400"></i>
+          Backup & Restore Data Lokal
+        </h3>
+        <button onclick="closeBackupModal()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Backup Action -->
+      <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+        <span class="font-bold text-xs text-emerald-400 block">1. Ekspor Cadangan (Backup)</span>
+        <p class="text-[11px] text-slate-400">Unduh file `.json` berisi semua catatan transaksi Anda untuk disimpan sebagai cadangan.</p>
+        <button onclick="exportJSONBackup()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          <span>Unduh File Backup JSON</span>
+        </button>
+      </div>
+
+      <!-- Restore Action -->
+      <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+        <span class="font-bold text-xs text-sky-400 block">2. Pulihkan Cadangan (Restore)</span>
+        <p class="text-[11px] text-slate-400">Pilih file `.json` dari HP/Komputer untuk memulihkan transaksi.</p>
+        <input type="file" id="importJsonInput" accept=".json" class="hidden" onchange="handleJSONImport(event)">
+        <button onclick="document.getElementById('importJsonInput').click()" class="w-full py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5">
+          <i data-lucide="upload" class="w-4 h-4"></i>
+          <span>Pilih File Backup JSON</span>
+        </button>
+      </div>
+
+      <div class="pt-2 text-right">
+        <button onclick="closeBackupModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl">
+          Tutup
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- MAIN APPLICATION JAVASCRIPT LOGIC -->
+  <script>
+    // LOCAL STORAGE CONFIGURATION KEY
+    const STORAGE_KEY = 'pengeluarku_pos_offline_data_v1';
+
+    // CATEGORY MASTER DEFINITIONS
+    const CATEGORIES = [
+      { id: 'Makanan', label: 'Makanan', emoji: '🍜' },
+      { id: 'Transpor', label: 'Transpor', emoji: '🚗' },
+      { id: 'Belanja', label: 'Belanja', emoji: '🛒' },
+      { id: 'Tagihan', label: 'Tagihan', emoji: '⚡' },
+      { id: 'Hiburan', label: 'Hiburan', emoji: '🎬' },
+      { id: 'Kesehatan', label: 'Kesehatan', emoji: '💊' },
+      { id: 'Pulsa', label: 'Pulsa/Data', emoji: '📱' },
+      { id: 'Kopi', label: 'Kopi/Nongkrong', emoji: '☕' },
+      { id: 'Lainnya', label: 'Lain-lain', emoji: '📦' }
+    ];
+
+    // STATE MANAGEMENT
+    let expenses = [];
+    let currentNumpadStr = '0';
+    let selectedCategory = 'Makanan';
+    let editingId = null; // null when creating new, or ID string when editing
+    let soundEnabled = true;
+    let posChartInstance = null;
+
+    // INITIALIZATION ON PAGE LOAD
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+
+      // Load expenses from browser localStorage
+      loadExpensesFromStorage();
+
+      // Set default input date to Today
+      const todayStr = new Date().toISOString().split('T')[0];
+      document.getElementById('posDateInput').value = todayStr;
+
+      // Render Categories & Filter dropdown
+      renderCategoryGrid();
+      populateFilterOptions();
+
+      // Initial UI calculation & update
+      updateAllUI();
+
+      // Web Audio Synth for clicks
+      initAudio();
+    });
+
+    // LOCAL STORAGE OPERATIONS
+    function loadExpensesFromStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          expenses = JSON.parse(raw);
+        } else {
+          expenses = [];
+        }
+      } catch (e) {
+        console.error('Error loading LocalStorage:', e);
+        expenses = [];
+      }
+    }
+
+    function saveExpensesToStorage() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
+      } catch (e) {
+        console.error('Error saving LocalStorage:', e);
+        showToast('Gagal menyimpan ke penyimpanan lokal browser.', 'error');
+      }
+    }
+
+    // AUDIO FEEDBACK SYNTHESIZER (WEB AUDIO API)
+    let audioCtx = null;
+    function initAudio() {
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch (e) {}
+    }
+
+    function playBeep(freq = 600, duration = 0.04) {
+      if (!soundEnabled || !audioCtx) return;
+      try {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    function toggleAudioSound() {
+      soundEnabled = !soundEnabled;
+      const btn = document.getElementById('soundToggleBtn');
+      if (soundEnabled) {
+        btn.innerHTML = `<i data-lucide="volume-2" class="w-4 h-4"></i><span class="text-[11px] hidden md:inline">Suara: ON</span>`;
+        showToast('Suara tombol diaktifkan', 'info');
+      } else {
+        btn.innerHTML = `<i data-lucide="volume-x" class="w-4 h-4 text-slate-500"></i><span class="text-[11px] hidden md:inline text-slate-500">Suara: OFF</span>`;
+        showToast('Suara tombol dinonaktifkan', 'info');
+      }
+      lucide.createIcons();
+    }
+
+    // RENDER CATEGORIES TILES GRID
+    function renderCategoryGrid() {
+      const grid = document.getElementById('categoryGrid');
+      grid.innerHTML = '';
+
+      CATEGORIES.forEach(cat => {
+        const isSelected = cat.id === selectedCategory;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.onclick = () => selectCategory(cat.id);
+        btn.className = `pos-btn p-2 rounded-2xl border text-center flex flex-col items-center justify-center transition ${
+          isSelected 
+            ? 'bg-emerald-500 text-slate-950 font-extrabold border-emerald-400 shadow-md shadow-emerald-500/20 scale-[1.02]' 
+            : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+        }`;
+
+        btn.innerHTML = `
+          <span class="text-xl mb-0.5">${cat.emoji}</span>
+          <span class="text-[10px] leading-tight font-semibold line-clamp-1">${cat.label}</span>
+        `;
+        grid.appendChild(btn);
+      });
+    }
+
+    function selectCategory(catId) {
+      selectedCategory = catId;
+      playBeep(700, 0.04);
+      renderCategoryGrid();
+    }
+
+    function populateFilterOptions() {
+      const select = document.getElementById('historyCategoryFilter');
+      CATEGORIES.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat.id;
+        opt.innerText = `${cat.emoji} ${cat.label}`;
+        select.appendChild(opt);
+      });
+    }
+
+    // NUMPAD LOGIC
+    function pressNumpad(val) {
+      playBeep(550, 0.04);
+
+      if (val === 'BACKSPACE') {
+        if (currentNumpadStr.length <= 1) {
+          currentNumpadStr = '0';
+        } else {
+          currentNumpadStr = currentNumpadStr.slice(0, -1);
+        }
+      } else if (val === '000') {
+        if (currentNumpadStr !== '0' && currentNumpadStr !== '') {
+          currentNumpadStr += '000';
+        }
+      } else {
+        if (currentNumpadStr === '0') {
+          currentNumpadStr = val;
+        } else {
+          if (currentNumpadStr.length < 10) { // Max digits guard
+            currentNumpadStr += val;
+          }
+        }
+      }
+
+      updatePosDisplay();
+    }
+
+    function addQuickAmount(amount) {
+      playBeep(800, 0.06);
+      let currentNum = Number(currentNumpadStr) || 0;
+      currentNum += amount;
+      currentNumpadStr = currentNum.toString();
+      updatePosDisplay();
+    }
+
+    function clearNumpad() {
+      playBeep(400, 0.08);
+      currentNumpadStr = '0';
+      updatePosDisplay();
+    }
+
+    function updatePosDisplay() {
+      const num = Number(currentNumpadStr) || 0;
+      document.getElementById('posDisplay').innerText = num.toLocaleString('id-ID');
+    }
+
+    // CREATE OR EDIT EXPENSE SUBMISSION
+    function submitExpense() {
+      const amount = Number(currentNumpadStr);
+      if (amount <= 0) {
+        showToast('Ketik nominal pengeluaran terlebih dahulu!', 'error');
+        playBeep(300, 0.2);
+        return;
+      }
+
+      const note = document.getElementById('posNoteInput').value.trim();
+      const date = document.getElementById('posDateInput').value;
+      const now = new Date();
+      const timeStr = now.toTimeString().split(' ')[0].slice(0, 5); // HH:MM
+
+      if (editingId) {
+        // UPDATE EXISTING ITEM
+        const index = expenses.findIndex(e => e.id === editingId);
+        if (index !== -1) {
+          expenses[index] = {
+            ...expenses[index],
+            amount: amount,
+            category: selectedCategory,
+            note: note || selectedCategory,
+            date: date || expenses[index].date
+          };
+          showToast(`Transaksi diperbarui: Rp ${amount.toLocaleString('id-ID')}`, 'success');
+        }
+        editingId = null;
+        exitEditModeUI();
+      } else {
+        // CREATE NEW ITEM
+        const newExpense = {
+          id: 'exp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          amount: amount,
+          category: selectedCategory,
+          note: note || selectedCategory,
+          date: date || now.toISOString().split('T')[0],
+          time: timeStr,
+          createdAt: now.toISOString()
+        };
+
+        expenses.unshift(newExpense); // Put newest on top
+        showToast(`Tersimpan: Rp ${amount.toLocaleString('id-ID')}`, 'success');
+      }
+
+      playBeep(1000, 0.12);
+
+      // Save & Sync
+      saveExpensesToStorage();
+      updateAllUI();
+
+      // Reset Input Fields
+      currentNumpadStr = '0';
+      document.getElementById('posNoteInput').value = '';
+      updatePosDisplay();
+    }
+
+    // EDIT MODE LOGIC
+    function startEditExpense(id) {
+      const item = expenses.find(e => e.id === id);
+      if (!item) return;
+
+      editingId = item.id;
+      currentNumpadStr = item.amount.toString();
+      selectedCategory = item.category;
+      
+      document.getElementById('posNoteInput').value = item.note || '';
+      document.getElementById('posDateInput').value = item.date;
+
+      updatePosDisplay();
+      renderCategoryGrid();
+
+      // Change UI to editing state
+      document.getElementById('editingBanner').classList.remove('hidden');
+      document.getElementById('displayModeBadge').innerText = 'EDIT TRANSKASI';
+      document.getElementById('btnSubmitText').innerText = 'PERBARUI TRANSKASI';
+
+      showToast('Mode Edit Aktif. Ubah nominal/detail lalu simpan.', 'info');
+    }
+
+    function cancelEditMode() {
+      editingId = null;
+      currentNumpadStr = '0';
+      document.getElementById('posNoteInput').value = '';
+      updatePosDisplay();
+      exitEditModeUI();
+    }
+
+    function exitEditModeUI() {
+      document.getElementById('editingBanner').classList.add('hidden');
+      document.getElementById('displayModeBadge').innerText = 'NOMINAL PENGELUARAN';
+      document.getElementById('btnSubmitText').innerText = 'SIMPAN PENGELUARAN';
+    }
+
+    // CALCULATIONS & REALTIME KPI STATS
+    function updateAllUI() {
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+
+      // Calculate Monday of current week
+      const startOfWeek = new Date(now);
+      const day = startOfWeek.getDay();
+      const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
+      startOfWeek.setDate(diff);
+      startOfWeek.setHours(0,0,0,0);
+
+      let todaySum = 0, todayCount = 0;
+      let weeklySum = 0;
+      let monthlySum = 0;
+      let yearlySum = 0;
+
+      expenses.forEach(item => {
+        const amt = Number(item.amount) || 0;
+        const itemDate = new Date(item.date + 'T00:00:00');
+
+        // Today
+        if (item.date === todayStr) {
+          todaySum += amt;
+          todayCount++;
+        }
+
+        // This Week
+        if (itemDate >= startOfWeek) {
+          weeklySum += amt;
+        }
+
+        // This Month
+        if (itemDate.getMonth() === now.getMonth() && itemDate.getFullYear() === now.getFullYear()) {
+          monthlySum += amt;
+        }
+
+        // This Year
+        if (itemDate.getFullYear() === now.getFullYear()) {
+          yearlySum += amt;
+        }
+      });
+
+      // Update Top KPI Displays
+      document.getElementById('kpiToday').innerText = `Rp ${todaySum.toLocaleString('id-ID')}`;
+      document.getElementById('kpiTodaySub').innerText = `${todayCount} transaksi hari ini`;
+
+      document.getElementById('kpiWeekly').innerText = `Rp ${weeklySum.toLocaleString('id-ID')}`;
+      document.getElementById('kpiMonthly').innerText = `Rp ${monthlySum.toLocaleString('id-ID')}`;
+      document.getElementById('kpiYearly').innerText = `Rp ${yearlySum.toLocaleString('id-ID')}`;
+
+      // Render Receipt List and Analytics
+      renderHistoryList();
+      renderAnalytics();
+    }
+
+    // RENDER RECEIPT HISTORY LIST
+    function renderHistoryList() {
+      const searchQuery = document.getElementById('historySearchInput').value.toLowerCase();
+      const categoryFilter = document.getElementById('historyCategoryFilter').value;
+
+      const filtered = expenses.filter(item => {
+        const catMatch = categoryFilter === 'ALL' || item.category === categoryFilter;
+        const searchMatch = !searchQuery || 
+                            (item.note && item.note.toLowerCase().includes(searchQuery)) || 
+                            item.category.toLowerCase().includes(searchQuery);
+        return catMatch && searchMatch;
+      });
+
+      const container = document.getElementById('receiptRows');
+      const emptyState = document.getElementById('receiptEmpty');
+      container.innerHTML = '';
+
+      if (filtered.length === 0) {
+        emptyState.classList.remove('hidden');
+      } else {
+        emptyState.classList.add('hidden');
+
+        let filteredTotal = 0;
+
+        filtered.forEach(item => {
+          filteredTotal += Number(item.amount);
+          const catInfo = CATEGORIES.find(c => c.id === item.category) || CATEGORIES[8];
+
+          const row = document.createElement('div');
+          row.className = 'pt-2 flex justify-between items-start group';
+          row.innerHTML = `
+            <div class="flex-1 pr-2">
+              <div class="flex items-center gap-1.5 font-bold text-slate-900">
+                <span>${catInfo.emoji}</span>
+                <span class="line-clamp-1">${item.note || item.category}</span>
+              </div>
+              <div class="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
+                <span>${item.date}</span>
+                <span>${item.time || ''}</span>
+              </div>
+            </div>
+            <div class="text-right flex flex-col items-end shrink-0">
+              <span class="font-bold text-slate-900">Rp ${Number(item.amount).toLocaleString('id-ID')}</span>
+              <div class="flex items-center gap-2 mt-0.5 opacity-80 group-hover:opacity-100 transition">
+                <button onclick="startEditExpense('${item.id}')" class="text-[10px] text-blue-600 hover:text-blue-800 font-sans font-semibold">
+                  Edit
+                </button>
+                <button onclick="confirmDeleteSingleExpense('${item.id}')" class="text-[10px] text-rose-600 hover:text-rose-800 font-sans font-semibold">
+                  Hapus
+                </button>
+              </div>
+            </div>
+          `;
+          container.appendChild(row);
+        });
+
+        document.getElementById('receiptFilteredTotal').innerText = `Rp ${filteredTotal.toLocaleString('id-ID')}`;
+      }
+    }
+
+    // RENDER ANALYTICS & CHART
+    function renderAnalytics() {
+      const catTotals = {};
+      CATEGORIES.forEach(c => catTotals[c.id] = 0);
+
+      expenses.forEach(item => {
+        if (catTotals[item.category] !== undefined) {
+          catTotals[item.category] += Number(item.amount);
+        } else {
+          catTotals['Lainnya'] += Number(item.amount);
+        }
+      });
+
+      // Breakdown list
+      const breakdownContainer = document.getElementById('categoryBreakdownList');
+      breakdownContainer.innerHTML = '';
+
+      const sortedCats = Object.keys(catTotals)
+        .map(catId => ({ catId, total: catTotals[catId] }))
+        .sort((a,b) => b.total - a.total);
+
+      sortedCats.forEach(item => {
+        if (item.total > 0) {
+          const catInfo = CATEGORIES.find(c => c.id === item.catId) || CATEGORIES[8];
+          const div = document.createElement('div');
+          div.className = 'flex justify-between items-center p-2 bg-slate-900 rounded-xl border border-slate-800';
+          div.innerHTML = `
+            <span class="flex items-center gap-2 text-slate-300">
+              <span>${catInfo.emoji}</span>
+              <span>${catInfo.label}</span>
+            </span>
+            <span class="font-bold font-mono text-emerald-400">Rp ${item.total.toLocaleString('id-ID')}</span>
+          `;
+          breakdownContainer.appendChild(div);
+        }
+      });
+
+      // Chart.js Visualization
+      const activeLabels = sortedCats.filter(x => x.total > 0).map(x => x.catId);
+      const activeData = sortedCats.filter(x => x.total > 0).map(x => x.total);
+
+      const ctx = document.getElementById('posCategoryChart').getContext('2d');
+      if (posChartInstance) posChartInstance.destroy();
+
+      if (activeData.length === 0) {
+        posChartInstance = new Chart(ctx, {
+          type: 'doughnut',
+          data: { labels: ['Belum Ada Data'], datasets: [{ data: [1], backgroundColor: ['#334155'] }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+        return;
+      }
+
+      posChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: activeLabels,
+          datasets: [{
+            data: activeData,
+            backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6', '#ec4899', '#6366f1', '#64748b'],
+            borderWidth: 2,
+            borderColor: '#020617'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: { boxWidth: 10, font: { size: 10 }, color: '#94a3b8' }
+            }
+          },
+          cutout: '70%'
+        }
+      });
+    }
+
+    // SINGLE DELETE CONFIRMATION
+    function confirmDeleteSingleExpense(id) {
+      const item = expenses.find(e => e.id === id);
+      if (!item) return;
+
+      const modal = document.getElementById('confirmModal');
+      document.getElementById('confirmTitle').innerText = 'Hapus Transaksi?';
+      document.getElementById('confirmMessage').innerText = `Hapus "${item.note || item.category}" (Rp ${Number(item.amount).toLocaleString('id-ID')})?`;
+
+      modal.classList.remove('hidden');
+
+      const actionBtn = document.getElementById('confirmActionBtn');
+      const cancelBtn = document.getElementById('confirmCancelBtn');
+
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        actionBtn.removeEventListener('click', onConfirm);
+        cancelBtn.removeEventListener('click', onCancel);
+      };
+
+      const onConfirm = () => {
+        cleanup();
+        expenses = expenses.filter(e => e.id !== id);
+        saveExpensesToStorage();
+        updateAllUI();
+        showToast('Transaksi berhasil dihapus', 'info');
+      };
+
+      const onCancel = () => {
+        cleanup();
+      };
+
+      actionBtn.addEventListener('click', onConfirm);
+      cancelBtn.addEventListener('click', onCancel);
+    }
+
+    // RESET ALL DATA CONFIRMATION
+    function confirmResetAllData() {
+      const modal = document.getElementById('confirmModal');
+      document.getElementById('confirmTitle').innerText = 'HAPUS SELURUH DATA?';
+      document.getElementById('confirmMessage').innerText = 'Seluruh data pengeluaran akan dihapus secara permanen dari browser ini.';
+
+      modal.classList.remove('hidden');
+
+      const actionBtn = document.getElementById('confirmActionBtn');
+      const cancelBtn = document.getElementById('confirmCancelBtn');
+
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        actionBtn.removeEventListener('click', onConfirm);
+        cancelBtn.removeEventListener('click', onCancel);
+      };
+
+      const onConfirm = () => {
+        cleanup();
+        expenses = [];
+        saveExpensesToStorage();
+        updateAllUI();
+        showToast('Seluruh data berhasil dibersihkan', 'info');
+      };
+
+      const onCancel = () => {
+        cleanup();
+      };
+
+      actionBtn.addEventListener('click', onConfirm);
+      cancelBtn.addEventListener('click', onCancel);
+    }
+
+    // EXPORT TO EXCEL/CSV
+    function exportCSV() {
+      if (expenses.length === 0) {
+        showToast('Belum ada data untuk diekspor', 'error');
+        return;
+      }
+
+      let csv = "\uFEFFTanggal,Waktu,Kategori,Keterangan,Nominal\n";
+      expenses.forEach(item => {
+        const cleanNote = `"${(item.note || '').replace(/"/g, '""')}"`;
+        csv += `${item.date},${item.time || ''},${item.category},${cleanNote},${item.amount}\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Laporan_Pengeluaran_POS_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      showToast('File CSV/Excel berhasil diunduh!', 'success');
+    }
+
+    // EXPORT JSON BACKUP
+    function exportJSONBackup() {
+      if (expenses.length === 0) {
+        showToast('Belum ada data untuk dibackup', 'error');
+        return;
+      }
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(expenses, null, 2));
+      const link = document.createElement('a');
+      link.setAttribute("href", dataStr);
+      link.setAttribute("download", `Backup_PengeluaranKu_${new Date().toISOString().split('T')[0]}.json`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      showToast('File backup JSON berhasil diunduh!', 'success');
+    }
+
+    // IMPORT JSON BACKUP
+    function handleJSONImport(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const importedData = JSON.parse(e.target.result);
+          if (Array.isArray(importedData)) {
+            expenses = importedData;
+            saveExpensesToStorage();
+            updateAllUI();
+            closeBackupModal();
+            showToast('Data berhasil dipulihkan (Restore)!', 'success');
+          } else {
+            showToast('Format file JSON tidak valid.', 'error');
+          }
+        } catch (err) {
+          showToast('Gagal membaca file JSON.', 'error');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // BACKUP MODAL CONTROLLERS
+    function openBackupModal() {
+      document.getElementById('backupModal').classList.remove('hidden');
+    }
+    function closeBackupModal() {
+      document.getElementById('backupModal').classList.add('hidden');
+    }
+
+    // TAB SWITCHING
+    function switchTab(tabName) {
+      playBeep(650, 0.03);
+
+      const hContent = document.getElementById('tabHistoryContent');
+      const aContent = document.getElementById('tabAnalyticsContent');
+      const dContent = document.getElementById('tabDataContent');
+
+      const hBtn = document.getElementById('tabBtnHistory');
+      const aBtn = document.getElementById('tabBtnAnalytics');
+      const dBtn = document.getElementById('tabBtnData');
+
+      hContent.classList.add('hidden');
+      aContent.classList.add('hidden');
+      dContent.classList.add('hidden');
+
+      hBtn.className = 'flex-1 py-2 rounded-xl transition text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1.5';
+      aBtn.className = 'flex-1 py-2 rounded-xl transition text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1.5';
+      dBtn.className = 'flex-1 py-2 rounded-xl transition text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1.5';
+
+      if (tabName === 'history') {
+        hContent.classList.remove('hidden');
+        hBtn.className = 'flex-1 py-2 rounded-xl transition bg-slate-800 text-emerald-400 shadow-sm flex items-center justify-center gap-1.5 font-bold';
+      } else if (tabName === 'analytics') {
+        aContent.classList.remove('hidden');
+        aBtn.className = 'flex-1 py-2 rounded-xl transition bg-slate-800 text-emerald-400 shadow-sm flex items-center justify-center gap-1.5 font-bold';
+        renderAnalytics();
+      } else if (tabName === 'data') {
+        dContent.classList.remove('hidden');
+        dBtn.className = 'flex-1 py-2 rounded-xl transition bg-slate-800 text-emerald-400 shadow-sm flex items-center justify-center gap-1.5 font-bold';
+      }
+    }
+
+    // TOAST NOTIFICATION SYSTEM
+    function showToast(msg, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+
+      const bgMap = {
+        success: 'bg-emerald-600 text-white',
+        error: 'bg-rose-600 text-white',
+        info: 'bg-slate-800 text-slate-100 border border-slate-700'
+      };
+
+      toast.className = `pointer-events-auto px-4 py-3 rounded-2xl shadow-2xl text-xs font-bold ${bgMap[type] || bgMap.success} transition duration-300 transform translate-y-2 opacity-0 flex items-center gap-2`;
+      toast.innerHTML = `<span>${msg}</span>`;
+
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      }, 10);
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => {
+          if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 300);
+      }, 2500);
+    }
+  </script>
+</body>
+</html>
